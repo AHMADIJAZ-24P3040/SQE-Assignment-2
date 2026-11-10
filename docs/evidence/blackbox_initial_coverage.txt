@@ -1,0 +1,591 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.14.4, pytest-9.1.1, pluggy-1.6.0
+rootdir: C:\Users\Ahmad Kazmi\Downloads\SQE_Assignment2_Student_Starter\SQE_Assignment2_Registration_Student
+plugins: anyio-4.14.2, langsmith-0.10.13, asyncio-1.4.0, cov-7.1.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 56 items
+
+tests\test_blackbox.py ...F........F..F...F.....FF..F.F.FF..FF..F...Fs.F [ 87%]
+.FF.F.F                                                                  [100%]
+
+================================== FAILURES ===================================
+_____________ TestCheckCreditLimit.test_ecp_20_valid_max_current ______________
+
+self = <test_blackbox.TestCheckCreditLimit object at 0x000002C34B0AA190>
+
+    def test_ecp_20_valid_max_current(self):
+        """ECP-20: Valid maximum current credits (18)."""
+>       result = check_credit_limit(18, 0)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_blackbox.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+current_credits = 18, new_credits = 0
+
+    def check_credit_limit(current_credits: int, new_credits: int) -> bool:
+        """Return whether an additional course can fit the permitted credit load."""
+        if not 0 <= current_credits <= 18:
+            raise ValueError("Invalid current credits")
+        if not 1 <= new_credits <= 4:
+>           raise ValueError("Invalid course credits")
+E           ValueError: Invalid course credits
+
+registration.py:33: ValueError
+____________ TestCheckCreditLimit.test_bva_09_combined_exactly_18 _____________
+
+self = <test_blackbox.TestCheckCreditLimit object at 0x000002C34B1559B0>
+
+    def test_bva_09_combined_exactly_18(self):
+        """BVA-09: Combined credits exactly 18 (allowed per FR-01)."""
+        # FR-01: exactly 18 is allowed, so returns True
+        result = check_credit_limit(15, 3)
+>       assert result is True  # 15 + 3 = 18, which should be allowed
+        ^^^^^^^^^^^^^^^^^^^^^
+E       assert False is True
+
+tests\test_blackbox.py:110: AssertionError
+__________ TestPrerequisitesSatisfied.test_ecp_05_partial_satisfied ___________
+
+self = <test_blackbox.TestPrerequisitesSatisfied object at 0x000002C34B08AC10>
+
+    def test_ecp_05_partial_satisfied(self):
+        """ECP-05: Only some prerequisites satisfied."""
+        result = prerequisites_satisfied({'CS101'}, {'CS101', 'MATH101'})
+>       assert result is False
+E       assert True is False
+
+tests\test_blackbox.py:133: AssertionError
+_________ TestPrerequisitesSatisfied.test_prereq_multiple_one_missing _________
+
+self = <test_blackbox.TestPrerequisitesSatisfied object at 0x000002C34B114C00>
+
+    def test_prereq_multiple_one_missing(self):
+        """Multiple prerequisites, one missing."""
+        completed = {'CS101', 'PHYS101'}
+        required = {'CS101', 'MATH101'}
+        result = prerequisites_satisfied(completed, required)
+>       assert result is False
+E       assert True is False
+
+tests\test_blackbox.py:157: AssertionError
+______ TestRegistrationDecisionOutcomes.test_ecp_01_ecp_02_dues_no_dues _______
+
+self = <test_blackbox.TestRegistrationDecisionOutcomes object at 0x000002C34B08B110>
+student = Student(student_id='S001', completed_courses=set(), current_credits=0, outstanding_dues=0, registered_courses=set())
+course = Course(code='CS101', credit_hours=3, capacity=30, enrolled=0, prerequisites=set(), waitlist=[])
+
+    def test_ecp_01_ecp_02_dues_no_dues(self, student, course):
+        """ECP-01, ECP-02: Dues blocks registration."""
+        # Student with no dues
+        student.outstanding_dues = 0
+        result = registration_decision(student, course)
+        assert result in ["REGISTERED", "WAITLISTED", "PREREQUISITES_MISSING", "CREDIT_LIMIT", "ALREADY_REGISTERED"]
+    
+        # Student with dues (should block)
+        student_with_dues = Student(
+            student_id="S2",
+            outstanding_dues=100,
+            current_credits=0,
+            registered_courses=set(),
+            completed_courses=set()
+        )
+        result_with_dues = registration_decision(student_with_dues, course)
+>       assert result_with_dues == "DUES_BLOCK"
+E       AssertionError: assert 'REGISTERED' == 'DUES_BLOCK'
+E         
+E         - DUES_BLOCK
+E         + REGISTERED
+
+tests\test_blackbox.py:226: AssertionError
+_______ TestRegistrationDecisionOutcomes.test_dt_01_dues_block_priority _______
+
+self = <test_blackbox.TestRegistrationDecisionOutcomes object at 0x000002C34B08AFD0>
+
+    def test_dt_01_dues_block_priority(self):
+        """DT-01: Dues block has highest priority."""
+        student = Student(
+            student_id="S1",
+            outstanding_dues=50,
+            current_credits=0,
+            registered_courses=set(),
+            completed_courses=set()
+        )
+        course = Course(
+            code="CS101",
+            credit_hours=3,
+            capacity=2,
+            enrolled=2,  # Full
+            prerequisites={'MATH101'},
+            waitlist=['S2']
+        )
+        # Even though prereqs missing, seat unavailable, already registered - dues blocks
+        result = registration_decision(student, course)
+>       assert result == "DUES_BLOCK"
+E       AssertionError: assert 'PREREQUISITES_MISSING' == 'DUES_BLOCK'
+E         
+E         - DUES_BLOCK
+E         + PREREQUISITES_MISSING
+
+tests\test_blackbox.py:247: AssertionError
+_ TestRegistrationDecisionOutcomes.test_ecp_04_ecp_05_ecp_06_ecp_07_prerequisites _
+
+self = <test_blackbox.TestRegistrationDecisionOutcomes object at 0x000002C34B148B90>
+
+    def test_ecp_04_ecp_05_ecp_06_ecp_07_prerequisites(self):
+        """ECP-04, 05, 06, 07: Prerequisites check (priority 3)."""
+        # All prerequisites satisfied
+        student = Student(
+            student_id="S1",
+            outstanding_dues=0,
+            current_credits=0,
+            registered_courses=set(),
+            completed_courses={'CS101', 'MATH101'}
+        )
+        course = Course(
+            code="PHYS201",
+            credit_hours=3,
+            capacity=30,
+            enrolled=10,
+            prerequisites={'CS101', 'MATH101'},
+            waitlist=[]
+        )
+        result = registration_decision(student, course)
+        assert result in ["REGISTERED", "WAITLISTED", "CREDIT_LIMIT"]
+    
+        # Some prerequisites missing
+        student2 = Student(
+            student_id="S2",
+            outstanding_dues=0,
+            current_credits=0,
+            registered_courses=set(),
+            completed_courses={'CS101'}  # Missing MATH101
+        )
+        result2 = registration_decision(student2, course)
+>       assert result2 == "PREREQUISITES_MISSING"
+E       AssertionError: assert 'REGISTERED' == 'PREREQUISITES_MISSING'
+E         
+E         - PREREQUISITES_MISSING
+E         + REGISTERED
+
+tests\test_blackbox.py:311: AssertionError
+______ TestRegistrationDecisionOutcomes.test_ecp_10_ecp_12_credit_limit _______
+
+self = <test_blackbox.TestRegistrationDecisionOutcomes object at 0x000002C34B114F30>
+student = Student(student_id='S001', completed_courses=set(), current_credits=15, outstanding_dues=0, registered_courses=set())
+course = Course(code='CS101', credit_hours=3, capacity=30, enrolled=0, prerequisites=set(), waitlist=[])
+
+    def test_ecp_10_ecp_12_credit_limit(self, student, course):
+        """ECP-10, ECP-12: Credit limit check (priority 4)."""
+        # Within limit
+        student.current_credits = 15
+        course.credit_hours = 3
+        result = registration_decision(student, course)
+>       assert result in ["REGISTERED", "WAITLISTED"]
+E       AssertionError: assert 'CREDIT_LIMIT' in ['REGISTERED', 'WAITLISTED']
+
+tests\test_blackbox.py:339: AssertionError
+____ TestRegistrationDecisionOutcomes.test_ecp_13_ecp_14_seat_availability ____
+
+self = <test_blackbox.TestRegistrationDecisionOutcomes object at 0x000002C34B168D50>
+
+    def test_ecp_13_ecp_14_seat_availability(self):
+        """ECP-13, ECP-14: Seat availability (priority 5)."""
+        base_student = Student(
+            student_id="S1",
+            outstanding_dues=0,
+            current_credits=5,
+            registered_courses=set(),
+            completed_courses=set()
+        )
+    
+        # Seat available
+        course_available = Course(
+            code="CS101",
+            credit_hours=3,
+            capacity=30,
+            enrolled=10,
+            prerequisites=set(),
+            waitlist=[]
+        )
+        result_avail = registration_decision(base_student, course_available)
+        assert result_avail == "REGISTERED"
+    
+        # No seat (full)
+        course_full = Course(
+            code="CS102",
+            credit_hours=3,
+            capacity=30,
+            enrolled=30,
+            prerequisites=set(),
+            waitlist=[]
+        )
+        result_full = registration_decision(base_student, course_full)
+>       assert result_full == "WAITLISTED"
+E       AssertionError: assert 'REGISTERED' == 'WAITLISTED'
+E         
+E         - WAITLISTED
+E         + REGISTERED
+
+tests\test_blackbox.py:412: AssertionError
+_ TestRegistrationDecisionOutcomes.test_dt_05_waitlisted_enrolled_equals_capacity _
+
+self = <test_blackbox.TestRegistrationDecisionOutcomes object at 0x000002C34B0BAC60>
+
+    def test_dt_05_waitlisted_enrolled_equals_capacity(self):
+        """DT-05: WAITLISTED when enrolled == capacity."""
+        student = Student(
+            student_id="S1",
+            outstanding_dues=0,
+            current_credits=0,
+            registered_courses=set(),
+            completed_courses=set()
+        )
+        course = Course(
+            code="CS101",
+            credit_hours=3,
+            capacity=30,
+            enrolled=30,
+            prerequisites=set(),
+            waitlist=[]
+        )
+        result = registration_decision(student, course)
+>       assert result == "WAITLISTED"
+E       AssertionError: assert 'REGISTERED' == 'WAITLISTED'
+E         
+E         - WAITLISTED
+E         + REGISTERED
+
+tests\test_blackbox.py:432: AssertionError
+____________ TestRegisterCourse.test_dt_05_waitlist_updates_state _____________
+
+self = <test_blackbox.TestRegisterCourse object at 0x000002C34B08B4D0>
+
+    def test_dt_05_waitlist_updates_state(self):
+        """DT-05: WAITLISTED appends to waitlist only if absent."""
+        student = Student(
+            student_id="S1",
+            completed_courses=set(),
+            current_credits=0,
+            outstanding_dues=0,
+            registered_courses=set()
+        )
+        course = Course(
+            code="CS101",
+            credit_hours=3,
+            capacity=30,
+            enrolled=30,
+            prerequisites=set(),
+            waitlist=[]
+        )
+    
+        # Before waitlist
+        assert student.student_id not in course.waitlist
+        assert student.current_credits == 0
+        assert "CS101" not in student.registered_courses
+    
+        # First waitlist
+        result = register_course(student, course)
+>       assert result == "WAITLISTED"
+E       AssertionError: assert 'REGISTERED' == 'WAITLISTED'
+E         
+E         - WAITLISTED
+E         + REGISTERED
+
+tests\test_blackbox.py:519: AssertionError
+_____ TestRegisterCourse.test_register_failed_no_state_change_dues_block ______
+
+self = <test_blackbox.TestRegisterCourse object at 0x000002C34B0AAD70>
+
+    def test_register_failed_no_state_change_dues_block(self):
+        """Failed registration (DUES_BLOCK) leaves state unchanged."""
+        student = Student(
+            student_id="S1",
+            completed_courses=set(),
+            current_credits=0,
+            outstanding_dues=100,
+            registered_courses=set()
+        )
+        course = Course(
+            code="CS101",
+            credit_hours=3,
+            capacity=30,
+            enrolled=10,
+            prerequisites=set(),
+            waitlist=[]
+        )
+    
+        initial_credits = student.current_credits
+        initial_enrolled = course.enrolled
+        initial_registered = len(student.registered_courses)
+        initial_waitlist_len = len(course.waitlist)
+    
+        result = register_course(student, course)
+>       assert result == "DUES_BLOCK"
+E       AssertionError: assert 'REGISTERED' == 'DUES_BLOCK'
+E         
+E         - DUES_BLOCK
+E         + REGISTERED
+
+tests\test_blackbox.py:553: AssertionError
+______________ TestWithdrawCourse.test_withdraw_enrolled_student ______________
+
+self = <test_blackbox.TestWithdrawCourse object at 0x000002C34B08B250>
+
+    def test_withdraw_enrolled_student(self):
+        """FR-13: Withdraw enrolled student updates state."""
+        student = Student(
+            student_id="S1",
+            completed_courses=set(),
+            current_credits=12,
+            outstanding_dues=0,
+            registered_courses={'CS101', 'CS102'}
+        )
+        course = Course(
+            code="CS101",
+            credit_hours=3,
+            capacity=30,
+            enrolled=10,
+            prerequisites=set(),
+            waitlist=[]
+        )
+    
+        # Before withdrawal
+        assert "CS101" in student.registered_courses
+        assert student.current_credits == 12
+        assert course.enrolled == 10
+    
+        # Withdraw
+        result = withdraw_course(student, course)
+    
+        # After withdrawal
+        assert result is True
+        assert "CS101" not in student.registered_courses
+        assert student.current_credits == 9  # 12 - 3
+>       assert course.enrolled == 9  # 10 - 1
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: assert 10 == 9
+E        +  where 10 = Course(code='CS101', credit_hours=3, capacity=30, enrolled=10, prerequisites=set(), waitlist=[]).enrolled
+
+tests\test_blackbox.py:655: AssertionError
+________________ test_bva_combined_credit_scenarios[15-3-True] ________________
+
+current = 15, course_credits = 3, expected = True
+
+    @pytest.mark.parametrize("current,course_credits,expected", [
+        (0, 1, True),     # Minimum boundary
+        (15, 3, True),    # Within 18
+        (18, 0, None),    # Can't test with credit 0
+        (16, 3, False),   # Exceeds 18
+        (17, 1, True),    # Exactly 18
+    ])
+    def test_bva_combined_credit_scenarios(current, course_credits, expected):
+        """BVA-09, BVA-10, BVA-12: Combined credit scenarios."""
+        if expected is None:
+            pytest.skip("Invalid course credit")
+    
+        result = check_credit_limit(current, course_credits)
+>       assert result == expected, f"current={current}, course={course_credits}, total={current + course_credits}"
+E       AssertionError: current=15, course=3, total=18
+E       assert False == True
+
+tests\test_blackbox.py:722: AssertionError
+________________ test_bva_combined_credit_scenarios[17-1-True] ________________
+
+current = 17, course_credits = 1, expected = True
+
+    @pytest.mark.parametrize("current,course_credits,expected", [
+        (0, 1, True),     # Minimum boundary
+        (15, 3, True),    # Within 18
+        (18, 0, None),    # Can't test with credit 0
+        (16, 3, False),   # Exceeds 18
+        (17, 1, True),    # Exactly 18
+    ])
+    def test_bva_combined_credit_scenarios(current, course_credits, expected):
+        """BVA-09, BVA-10, BVA-12: Combined credit scenarios."""
+        if expected is None:
+            pytest.skip("Invalid course credit")
+    
+        result = check_credit_limit(current, course_credits)
+>       assert result == expected, f"current={current}, course={course_credits}, total={current + course_credits}"
+E       AssertionError: current=17, course=1, total=18
+E       assert False == True
+
+tests\test_blackbox.py:722: AssertionError
+____________________ test_bva_dues_boundary[1-DUES_BLOCK] _____________________
+
+dues_amount = 1, expected_outcome = 'DUES_BLOCK'
+
+    @pytest.mark.parametrize("dues_amount,expected_outcome", [
+        (0, "not_blocked"),     # BVA-17
+        (1, "DUES_BLOCK"),      # BVA-18: just above zero
+        (100, "DUES_BLOCK"),    # Normal positive
+    ])
+    def test_bva_dues_boundary(dues_amount, expected_outcome):
+        """BVA-17, BVA-18: Dues boundary testing."""
+        student = Student(
+            student_id="S1",
+            outstanding_dues=dues_amount,
+            current_credits=0,
+            completed_courses=set(),
+            registered_courses=set()
+        )
+        course = Course(
+            code="CS101",
+            credit_hours=3,
+            capacity=30,
+            enrolled=10,
+            prerequisites=set(),
+            waitlist=[]
+        )
+    
+        result = registration_decision(student, course)
+        if expected_outcome == "not_blocked":
+            assert result != "DUES_BLOCK"
+        else:
+>           assert result == expected_outcome
+E           AssertionError: assert 'REGISTERED' == 'DUES_BLOCK'
+E             
+E             - DUES_BLOCK
+E             + REGISTERED
+
+tests\test_blackbox.py:752: AssertionError
+___________________ test_bva_dues_boundary[100-DUES_BLOCK] ____________________
+
+dues_amount = 100, expected_outcome = 'DUES_BLOCK'
+
+    @pytest.mark.parametrize("dues_amount,expected_outcome", [
+        (0, "not_blocked"),     # BVA-17
+        (1, "DUES_BLOCK"),      # BVA-18: just above zero
+        (100, "DUES_BLOCK"),    # Normal positive
+    ])
+    def test_bva_dues_boundary(dues_amount, expected_outcome):
+        """BVA-17, BVA-18: Dues boundary testing."""
+        student = Student(
+            student_id="S1",
+            outstanding_dues=dues_amount,
+            current_credits=0,
+            completed_courses=set(),
+            registered_courses=set()
+        )
+        course = Course(
+            code="CS101",
+            credit_hours=3,
+            capacity=30,
+            enrolled=10,
+            prerequisites=set(),
+            waitlist=[]
+        )
+    
+        result = registration_decision(student, course)
+        if expected_outcome == "not_blocked":
+            assert result != "DUES_BLOCK"
+        else:
+>           assert result == expected_outcome
+E           AssertionError: assert 'REGISTERED' == 'DUES_BLOCK'
+E             
+E             - DUES_BLOCK
+E             + REGISTERED
+
+tests\test_blackbox.py:752: AssertionError
+_____________ test_bva_seat_availability_boundary[1-1-WAITLISTED] _____________
+
+enrolled = 1, capacity = 1, expected = 'WAITLISTED'
+
+    @pytest.mark.parametrize("enrolled,capacity,expected", [
+        (0, 1, "REGISTERED"),      # BVA-13: below capacity
+        (1, 1, "WAITLISTED"),      # BVA-14: at capacity
+        (29, 30, "REGISTERED"),    # BVA-15: one seat left
+        (30, 30, "WAITLISTED"),    # BVA-16: exactly full
+    ])
+    def test_bva_seat_availability_boundary(enrolled, capacity, expected):
+        """BVA-13 through BVA-16: Seat availability at capacity boundary."""
+        student = Student(
+            student_id="S1",
+            outstanding_dues=0,
+            current_credits=0,
+            completed_courses=set(),
+            registered_courses=set()
+        )
+        course = Course(
+            code="CS101",
+            credit_hours=3,
+            capacity=capacity,
+            enrolled=enrolled,
+            prerequisites=set(),
+            waitlist=[]
+        )
+    
+        result = registration_decision(student, course)
+>       assert result == expected
+E       AssertionError: assert 'REGISTERED' == 'WAITLISTED'
+E         
+E         - WAITLISTED
+E         + REGISTERED
+
+tests\test_blackbox.py:780: AssertionError
+____________ test_bva_seat_availability_boundary[30-30-WAITLISTED] ____________
+
+enrolled = 30, capacity = 30, expected = 'WAITLISTED'
+
+    @pytest.mark.parametrize("enrolled,capacity,expected", [
+        (0, 1, "REGISTERED"),      # BVA-13: below capacity
+        (1, 1, "WAITLISTED"),      # BVA-14: at capacity
+        (29, 30, "REGISTERED"),    # BVA-15: one seat left
+        (30, 30, "WAITLISTED"),    # BVA-16: exactly full
+    ])
+    def test_bva_seat_availability_boundary(enrolled, capacity, expected):
+        """BVA-13 through BVA-16: Seat availability at capacity boundary."""
+        student = Student(
+            student_id="S1",
+            outstanding_dues=0,
+            current_credits=0,
+            completed_courses=set(),
+            registered_courses=set()
+        )
+        course = Course(
+            code="CS101",
+            credit_hours=3,
+            capacity=capacity,
+            enrolled=enrolled,
+            prerequisites=set(),
+            waitlist=[]
+        )
+    
+        result = registration_decision(student, course)
+>       assert result == expected
+E       AssertionError: assert 'REGISTERED' == 'WAITLISTED'
+E         
+E         - WAITLISTED
+E         + REGISTERED
+
+tests\test_blackbox.py:780: AssertionError
+=============================== tests coverage ================================
+_______________ coverage: platform win32, python 3.14.4-final-0 _______________
+
+Name              Stmts   Miss Branch BrPart  Cover   Missing
+-------------------------------------------------------------
+registration.py      53      3     26      3    92%   51, 59, 71
+-------------------------------------------------------------
+TOTAL                53      3     26      3    92%
+=========================== short test summary info ===========================
+FAILED tests/test_blackbox.py::TestCheckCreditLimit::test_ecp_20_valid_max_current
+FAILED tests/test_blackbox.py::TestCheckCreditLimit::test_bva_09_combined_exactly_18
+FAILED tests/test_blackbox.py::TestPrerequisitesSatisfied::test_ecp_05_partial_satisfied
+FAILED tests/test_blackbox.py::TestPrerequisitesSatisfied::test_prereq_multiple_one_missing
+FAILED tests/test_blackbox.py::TestRegistrationDecisionOutcomes::test_ecp_01_ecp_02_dues_no_dues
+FAILED tests/test_blackbox.py::TestRegistrationDecisionOutcomes::test_dt_01_dues_block_priority
+FAILED tests/test_blackbox.py::TestRegistrationDecisionOutcomes::test_ecp_04_ecp_05_ecp_06_ecp_07_prerequisites
+FAILED tests/test_blackbox.py::TestRegistrationDecisionOutcomes::test_ecp_10_ecp_12_credit_limit
+FAILED tests/test_blackbox.py::TestRegistrationDecisionOutcomes::test_ecp_13_ecp_14_seat_availability
+FAILED tests/test_blackbox.py::TestRegistrationDecisionOutcomes::test_dt_05_waitlisted_enrolled_equals_capacity
+FAILED tests/test_blackbox.py::TestRegisterCourse::test_dt_05_waitlist_updates_state
+FAILED tests/test_blackbox.py::TestRegisterCourse::test_register_failed_no_state_change_dues_block
+FAILED tests/test_blackbox.py::TestWithdrawCourse::test_withdraw_enrolled_student
+FAILED tests/test_blackbox.py::test_bva_combined_credit_scenarios[15-3-True]
+FAILED tests/test_blackbox.py::test_bva_combined_credit_scenarios[17-1-True]
+FAILED tests/test_blackbox.py::test_bva_dues_boundary[1-DUES_BLOCK] - Asserti...
+FAILED tests/test_blackbox.py::test_bva_dues_boundary[100-DUES_BLOCK] - Asser...
+FAILED tests/test_blackbox.py::test_bva_seat_availability_boundary[1-1-WAITLISTED]
+FAILED tests/test_blackbox.py::test_bva_seat_availability_boundary[30-30-WAITLISTED]
+================== 19 failed, 36 passed, 1 skipped in 0.30s ===================
