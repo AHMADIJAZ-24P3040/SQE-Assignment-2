@@ -23,3 +23,7 @@ env/
 
 # Redundant SRS archive
 Student_Registration_SRS.zip
+
+# CI test reports
+coverage.xml
+pytest-results.xml
