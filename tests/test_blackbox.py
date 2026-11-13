@@ -1,3 +1,4 @@
+# Reviewed for Part D final report (no functional change)
 """Black-box tests for Student Course Registration System.
 
 All expected results derived from REQUIREMENTS.md.
